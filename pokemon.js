@@ -16,7 +16,7 @@ const start = async () => {
     loadCounter(pokemon);
     loadPageBtns(1, pokemon);
 
-    // when checkbox clicked
+    // checkbox filter
     $('body').on('click', '.checkbox', async function (e) {
         let selectedFilters = {};
         $('.checkbox').filter(':checked').each(function() {
@@ -61,7 +61,7 @@ const start = async () => {
     });
     
 
-    // modal pop up when a button clicked
+    // modal pop up
     $('body').on('click', '.pokeCard', async function (e) {
         const pokemonName = $(this).attr('pokeName')
         const res = await axios.get(`https://pokeapi.co/api/v2/pokemon/${pokemonName}`)
@@ -95,6 +95,7 @@ const start = async () => {
         `)
     })
 
+    // pagination
     $('body').on('click', ".pageBtn", async function (e) {
         const pageNum = parseInt($(this).attr('pageNum'))
         await showCards(pageNum, currentDisplayedPokemon);
@@ -104,6 +105,7 @@ const start = async () => {
 
 };
 
+// load checkboxes
 async function loadCheckboxes() {
     $('#checkbox-container').empty();
     for (let i = 1; i < 19; i++) {
@@ -117,6 +119,7 @@ async function loadCheckboxes() {
     }
 }
 
+// load counter
 async function loadCounter(data) {
     $('#intro').empty();
     $('#intro').append(`
@@ -124,6 +127,7 @@ async function loadCounter(data) {
     `)
 }
 
+// load page buttons
 async function loadPageBtns(currentPage, data) {
 
     numPages = Math.ceil(data.length / numPerPage);
@@ -163,6 +167,7 @@ async function loadPageBtns(currentPage, data) {
     }
 }
 
+// show cards
 async function showCards(currentPage, data) {
 
     $('#pokemon').empty();
