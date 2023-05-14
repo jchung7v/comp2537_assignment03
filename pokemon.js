@@ -1,16 +1,22 @@
 let pokemon = [];
+let currentDisplayedPokemon = [];
 const numPerPage = 10;
 let numPages = 0;
 let numPageBtn = 5;
+let counter = 0;
 
-
-const setup = async () => {
+const start = async () => {
 
     let response = await axios.get('https://pokeapi.co/api/v2/pokemon?offset=0&limit=10000')
     pokemon = response.data.results;
+    currentDisplayedPokemon = pokemon;
     
-    showPage(1, pokemon);
-    
+    loadCheckboxes();
+    await showCards(1, pokemon);
+    loadCounter(pokemon);
+    loadPageBtns(1, pokemon);
+
+    // when checkbox clicked
     $('body').on('click', '.checkbox', async function (e) {
         let selectedFilters = {};
         $('.checkbox').filter(':checked').each(function() {
@@ -21,17 +27,37 @@ const setup = async () => {
         });
         console.log(selectedFilters);
 
+        if (Object.keys(selectedFilters).length === 0) {
+            currentDisplayedPokemon = pokemon;
+            await showCards(1, currentDisplayedPokemon);
+            loadCounter(currentDisplayedPokemon);
+            loadPageBtns(1, currentDisplayedPokemon);
+            return;
+        }
+
         let typeId = Object.values(selectedFilters)
         console.log(typeId)
 
+        let allFilteredPokemon;
         for (const id of typeId) {
             const res = await axios.get(`https://pokeapi.co/api/v2/type/${id}`)
-            const a = res.data.pokemon.map((pokemon) => pokemon.pokemon)
-            numPageBtn = 5;
-            console.log(a)
-            showPage(1, a)
+            const pokemons = new Set(res.data.pokemon.map((pokemon) => pokemon.pokemon.name))
+            if (allFilteredPokemon) {
+                allFilteredPokemon = new Set([...allFilteredPokemon].filter(x => pokemons.has(x)));
+            } else {
+                allFilteredPokemon = pokemons;
+            }
         }
-
+    
+        console.log(allFilteredPokemon)
+        const pokemonData = Array.from(allFilteredPokemon).map(name => {
+            return {name: name, url: `https://pokeapi.co/api/v2/pokemon/${name}`};
+        });
+        currentDisplayedPokemon = pokemonData;
+        console.log(pokemonData)
+        await showCards(1, currentDisplayedPokemon);
+        loadCounter(currentDisplayedPokemon);
+        loadPageBtns(1, currentDisplayedPokemon);
     });
     
 
@@ -71,24 +97,14 @@ const setup = async () => {
 
     $('body').on('click', ".pageBtn", async function (e) {
         const pageNum = parseInt($(this).attr('pageNum'))
-        const filteredPokemon = $('.checkbox').is(':checked') ? filteredPokemon : pokemon;
-        showPage(pageNum, filteredPokemon);
+        await showCards(pageNum, currentDisplayedPokemon);
+        loadCounter(currentDisplayedPokemon);
+        loadPageBtns(pageNum, currentDisplayedPokemon);
     })
 
 };
 
-async function showPage(currentPage, pokemonData) {
-
-    numPages = Math.ceil(pokemonData.length / numPerPage)
-    numPageBtn = Math.min(numPages, numPageBtn);
-
-    if (currentPage < 1) {
-        currentPage = 1;
-    }
-    if (currentPage > numPages) {
-        currentPage = numPages;
-    }
-
+async function loadCheckboxes() {
     $('#checkbox-container').empty();
     for (let i = 1; i < 19; i++) {
         let response = await axios.get(`https://pokeapi.co/api/v2/type/${i}`)
@@ -99,33 +115,26 @@ async function showPage(currentPage, pokemonData) {
             <label for=${type.name}>${type.name}</label>
         `)
     }
+}
 
-    $('#pokemon').empty();
-    for (let i = ((currentPage -1)*numPerPage); i < ((currentPage-1)*numPerPage) + numPerPage; i++) {
-        let innerResponse = await axios.get(`${pokemonData[i].url}`);
-        let thisPokemon = innerResponse.data;
+async function loadCounter(data) {
+    $('#intro').empty();
+    $('#intro').append(`
+        <h1>Showing ${counter} of ${data.length} pokemons</h1>
+    `)
+}
 
-        $('#pokemon').append(`
-        <div class="pokeCard card" pokeName=${thisPokemon.name}>
-            <h3>${thisPokemon.name}</h3>
-            <img src="${thisPokemon.sprites.front_default}" alt="${thisPokemon.name}"/>
-            <button type="button" class="btn btn-primary" data-bs-toggle="modal" data-bs-target="#pokeModal">More</button>
-        </div>
-        `)
+async function loadPageBtns(currentPage, data) {
+
+    numPages = Math.ceil(data.length / numPerPage);
+    numPageBtn = Math.min(numPages, numPageBtn);
+
+    if (currentPage < 1) {
+        currentPage = 1;
     }
-
-    // $('#pokemon').empty();
-    // for (let i = ((currentPage -1)*numPerPage); i < ((currentPage-1)*numPerPage) + numPerPage; i++) {
-    //     let innerResponse = await axios.get(`${pokemon[i].url}`);
-    //     let thisPokemon = innerResponse.data;
-    //     $('#pokemon').append(`
-    //     <div class="pokeCard card" pokeName=${thisPokemon.name}>
-    //         <h3>${thisPokemon.name}</h3>
-    //         <img src="${thisPokemon.sprites.front_default}" alt="${thisPokemon.name}"/>
-    //         <button type="button" class="btn btn-primary" data-bs-toggle="modal" data-bs-target="#pokeModal">More</button>
-    //     </div>
-    //     `)
-    // }
+    if (currentPage > numPages) {
+        currentPage = numPages;
+    }
 
     $('#pagination').empty();
     let startI = Math.max(1, currentPage-Math.floor(numPageBtn/2));
@@ -143,7 +152,7 @@ async function showPage(currentPage, pokemonData) {
             active = "active";
         }
         $('#pagination').append(`
-            <button type="button" class="btn btn-primary pageBtn ${active}" id="page${i}" pageNum="${i}">${i}</button>
+            <button type="button" class="btn btn-primary pageBtn ${active}" pageNum="${i}">${i}</button>
         `)
     }
 
@@ -152,9 +161,28 @@ async function showPage(currentPage, pokemonData) {
             <button type="button" class="btn btn-primary pageBtn id="pagenext" pageNum="${currentPage+1}">Next</button>
         `)
     }
-
 }
 
-$(document).ready(setup)
+async function showCards(currentPage, data) {
+
+    $('#pokemon').empty();
+    counter = 0;
+    for (let i = ((currentPage -1)*numPerPage); i < Math.min(((currentPage-1)*numPerPage) + numPerPage, data.length); i++) {
+        let innerResponse = await axios.get(`${data[i].url}`);
+        let thisPokemon = innerResponse.data;
+        let thisPokemonType = thisPokemon.types[0].type.name
+
+        $('#pokemon').append(`
+        <div class="pokeCard card" pokeName=${thisPokemon.name} pokeType=${thisPokemonType}>
+            <h3>${thisPokemon.name}</h3>
+            <img src="${thisPokemon.sprites.front_default}" alt="${thisPokemon.name}"/>
+            <button type="button" class="btn btn-primary" data-bs-toggle="modal" data-bs-target="#pokeModal">More</button>
+        </div>
+        `)
+        counter++;
+    }
+}
+
+$(document).ready(start)
 
 
